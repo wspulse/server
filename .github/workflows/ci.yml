@@ -2,11 +2,21 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, dev]
     tags:
       - 'v[0-9]+.[0-9]+.[0-9]+'
+    paths-ignore:
+      - '**.md'
+      - 'LICENSE'
+      - '.github/instructions/**'
+      - 'doc/**'
   pull_request:
     branches: [main]
+    paths-ignore:
+      - '**.md'
+      - 'LICENSE'
+      - '.github/instructions/**'
+      - 'doc/**'
 
 jobs:
   lint:
@@ -57,4 +67,7 @@ jobs:
         run: go work init . ./core
 
       - name: Run tests
-        run: go test -v -race -count=3 ./...
+        run: |
+          COUNT=1
+          if [ "${{ github.ref }}" = "refs/heads/main" ]; then COUNT=5; fi
+          go test -v -race -count=$COUNT ./...
