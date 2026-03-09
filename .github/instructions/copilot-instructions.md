@@ -18,20 +18,12 @@ wspulse/server is a **minimal, production-ready WebSocket server library** for G
 ## Development Workflow
 
 ```bash
-# Run all tests with race detector
-go test -race -count=3 ./...
-
-# Vet
-go vet ./...
-
-# Lint (requires golangci-lint)
-golangci-lint run ./...
-
-# Format
-goimports -w .
-
-# Benchmarks
-go test -bench=. -benchmem -run=^$ ./...
+make fmt        # format (gofmt + goimports)
+make lint       # vet + golangci-lint
+make test       # race detector, count=3
+make bench      # benchmarks with memory stats
+make test-cover # coverage report → coverage.html
+make tidy       # tidy module dependencies
 ```
 
 ## Conventions
@@ -48,9 +40,9 @@ go test -bench=. -benchmem -run=^$ ./...
   - All commit messages in English.
   - Each commit must represent exactly one logical change.
   - Before every commit, run in order:
-    1. `goimports -w .` — fix imports and formatting
-    2. `golangci-lint run ./...` — must pass with zero warnings
-    3. `go test -race ./...` — must pass
+    1. `make fmt` — fix imports and formatting
+    2. `make lint` — must pass with zero warnings
+    3. `make test` — must pass
 - **Tests**: co-located with source (`_test.go`). Cover happy path and at least one error path. Required for new public functions.
   - **Test-first for bug fixes**: when a bug is discovered, write a failing test that reproduces it before touching production code. The PR must include this test.
   - **Benchmarks**: changes to ring buffer, broadcast fan-out, or frame encoding must include a benchmark. Verify with `make bench`.
