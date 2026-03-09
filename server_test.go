@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+	"go.uber.org/goleak"
+
 	wspulse "github.com/wspulse/server"
 )
 
@@ -1245,4 +1247,8 @@ func TestServer_Resume_ConcurrentBroadcastDuringResume_NoRace(t *testing.T) {
 	}
 
 	wg.Wait()
+}
+
+func TestMain(m *testing.M) {
+	goleak.VerifyTestMain(m)
 }
