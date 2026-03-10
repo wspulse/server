@@ -71,7 +71,7 @@ func TestServer_ConnectFunc_RejectReturns401(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GET failed: %v", err)
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck
 	if resp.StatusCode != http.StatusUnauthorized {
 		t.Errorf("want 401, got %d", resp.StatusCode)
 	}
@@ -86,7 +86,7 @@ func TestServer_OnConnect_SendsFrame(t *testing.T) {
 	)
 	t.Cleanup(srv.Close)
 	c := dialTestServer(t, srv)
-	c.SetReadDeadline(time.Now().Add(3 * time.Second))
+	_ = c.SetReadDeadline(time.Now().Add(3 * time.Second))
 	_, message, err := c.ReadMessage()
 	if err != nil {
 		t.Fatalf("ReadMessage failed: %v", err)
@@ -147,7 +147,7 @@ func TestServer_Broadcast_ReachesConnectedClient(t *testing.T) {
 	if err := srv.Broadcast("test-room", frame); err != nil {
 		t.Fatalf("Broadcast failed: %v", err)
 	}
-	c.SetReadDeadline(time.Now().Add(3 * time.Second))
+	_ = c.SetReadDeadline(time.Now().Add(3 * time.Second))
 	_, message, err := c.ReadMessage()
 	if err != nil {
 		t.Fatalf("ReadMessage failed: %v", err)
@@ -217,7 +217,7 @@ func TestServer_Send_DeliversFrameToConnection(t *testing.T) {
 	if err := srv.Send("test-connection", frame); err != nil {
 		t.Fatalf("Send failed: %v", err)
 	}
-	c.SetReadDeadline(time.Now().Add(3 * time.Second))
+	_ = c.SetReadDeadline(time.Now().Add(3 * time.Second))
 	_, message, err := c.ReadMessage()
 	if err != nil {
 		t.Fatalf("ReadMessage failed: %v", err)
@@ -393,7 +393,7 @@ func TestServer_DuplicateConnectionID_OldKickedNewReachable(t *testing.T) {
 	if err := srv.Send("test-connection", frame); err != nil {
 		t.Fatalf("Send to second connection failed: %v", err)
 	}
-	c2.SetReadDeadline(time.Now().Add(3 * time.Second))
+	_ = c2.SetReadDeadline(time.Now().Add(3 * time.Second))
 	_, message, err := c2.ReadMessage()
 	if err != nil {
 		t.Fatalf("ReadMessage on second connection failed: %v", err)
@@ -560,7 +560,7 @@ func TestServer_BroadcastDropsOldest_SlowClient(t *testing.T) {
 
 	var frames []wspulse.Frame
 	for {
-		c.SetReadDeadline(time.Now().Add(500 * time.Millisecond))
+		_ = c.SetReadDeadline(time.Now().Add(500 * time.Millisecond))
 		_, message, err := c.ReadMessage()
 		if err != nil {
 			break
@@ -625,7 +625,7 @@ func TestServer_ShutdownFiresOnDisconnect(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Dial %d failed: %v", i, err)
 		}
-		defer c.Close()
+		defer c.Close() //nolint:errcheck
 	}
 
 	time.Sleep(200 * time.Millisecond)
@@ -902,7 +902,7 @@ func TestServer_Resume_ReconnectWithinWindow(t *testing.T) {
 	if err := srv.Send("test-connection", frame); err != nil {
 		t.Fatalf("Send after resume failed: %v", err)
 	}
-	c2.SetReadDeadline(time.Now().Add(3 * time.Second))
+	_ = c2.SetReadDeadline(time.Now().Add(3 * time.Second))
 	_, message, err := c2.ReadMessage()
 	if err != nil {
 		t.Fatalf("ReadMessage on resumed connection failed: %v", err)
@@ -999,7 +999,7 @@ func TestServer_Resume_BufferedFramesDelivered(t *testing.T) {
 
 	var frames []wspulse.Frame
 	for i := 0; i < 3; i++ {
-		c2.SetReadDeadline(time.Now().Add(3 * time.Second))
+		_ = c2.SetReadDeadline(time.Now().Add(3 * time.Second))
 		_, message, err := c2.ReadMessage()
 		if err != nil {
 			t.Fatalf("ReadMessage %d failed: %v", i, err)
@@ -1171,7 +1171,7 @@ func TestServer_Resume_BroadcastWhileSuspended(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = c2.Close() })
 
-	c2.SetReadDeadline(time.Now().Add(3 * time.Second))
+	_ = c2.SetReadDeadline(time.Now().Add(3 * time.Second))
 	_, message, err := c2.ReadMessage()
 	if err != nil {
 		t.Fatalf("ReadMessage failed: %v", err)

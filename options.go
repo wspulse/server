@@ -26,7 +26,7 @@ const (
 type ConnectFunc func(r *http.Request) (roomID, connectionID string, err error)
 
 // ServerOption configures a Server.
-type ServerOption func(*serverConfig)
+type ServerOption func(*serverConfig) //nolint:revive
 
 type serverConfig struct {
 	connect        ConnectFunc

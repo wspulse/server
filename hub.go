@@ -154,7 +154,7 @@ func (h *hub) handleRegister(message registerMessage) {
 				zap.String("conn_id", message.connectionID),
 			)
 			h.removeSession(existing)
-			existing.Close()
+			_ = existing.Close()
 			if fn := h.config.onDisconnect; fn != nil {
 				go fn(existing, ErrDuplicateConnectionID)
 			}
@@ -295,7 +295,7 @@ func (h *hub) handleTransportDied(message transportDiedMessage) {
 		zap.Error(message.err),
 	)
 	h.removeSession(target)
-	target.Close()
+	_ = target.Close()
 	if fn := h.config.onDisconnect; fn != nil {
 		go fn(target, message.err)
 	}
@@ -338,7 +338,7 @@ func (h *hub) handleGraceExpired(message graceExpiredMessage) {
 	// Only call Close()/onDisconnect if the session was still suspended.
 	// If stateClosed, Close() was already called; just clean up maps.
 	if state == stateSuspended {
-		target.Close()
+		_ = target.Close()
 
 		h.config.logger.Info("wspulse: session expired",
 			zap.String("conn_id", target.id),
@@ -370,7 +370,7 @@ func (h *hub) handleKick(request kickRequest) {
 	}
 
 	h.removeSession(target)
-	target.Close()
+	_ = target.Close()
 
 	h.config.logger.Debug("wspulse: session kicked",
 		zap.String("conn_id", request.connectionID),
@@ -464,7 +464,7 @@ func (h *hub) shutdown() {
 			}
 			target.mu.Unlock()
 
-			target.Close()
+			_ = target.Close()
 			disconnected = append(disconnected, target)
 		}
 	}
