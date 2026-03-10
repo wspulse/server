@@ -243,11 +243,12 @@ func (s *session) attachWS(transport *websocket.Conn, h *hub) {
 			// concurrent Send() calls continue pushing to resumeBuffer.
 			// Drain until empty, then atomically set stateConnected
 			// under the same lock — no reordering is possible.
+			s.mu.Lock()
+			bufferedCount := buffer.Len()
 			s.config.logger.Debug("wspulse: draining resumeBuffer",
 				zap.String("conn_id", s.id),
-				zap.Int("buffered", buffer.Len()),
+				zap.Int("buffered", bufferedCount),
 			)
-			s.mu.Lock()
 			for {
 				frames := buffer.Drain()
 				if len(frames) == 0 {
