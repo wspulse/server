@@ -63,11 +63,11 @@ router.GET("/ws", func(c *gin.Context) {
 
 ```go
 // Send to a specific connection
-srv.Send(connectionID, server.Frame{Type: "sys", Payload: []byte(`{"event":"welcome"}`)})
+srv.Send(connectionID, server.Frame{Event: "sys", Payload: []byte(`{"event":"welcome"}`)})
 
 // Broadcast to a room
 payload, _ := json.Marshal(myMessage)
-srv.Broadcast(roomID, server.Frame{Type: "msg", Payload: payload})
+srv.Broadcast(roomID, server.Frame{Event: "msg", Payload: payload})
 
 // Kick a connection
 srv.Kick(connectionID)
@@ -122,13 +122,17 @@ connections := srv.GetConnections(roomID)
 
 ## Frame Routing with `core/router`
 
-The router from [wspulse/core](https://github.com/wspulse/core) integrates directly with `WithOnMessage`. It dispatches each incoming frame to its handler based on the **`"type"` field** in the JSON message:
+The router from [wspulse/core](https://github.com/wspulse/core) integrates directly with `WithOnMessage`. It dispatches each incoming frame to its handler based on the **`"event"` field** in the JSON message:
 
 ```json
-{"id":"msg-001","type":"chat.message","payload":{"text":"hello"}}
+{
+  "id": "msg-001",
+  "event": "chat.message",
+  "payload": { "text": "hello" }
+}
 ```
 
-The value of `"type"` is `frame.Type` on the Go side, and is the key used to select the handler.
+The value of `"event"` is `frame.Event` on the Go side, and is the key used to select the handler.
 
 ```go
 import (
@@ -144,17 +148,17 @@ r.Use(func(c *router.Context) {
     c.Next()
 })
 
-// matches frames where "type" == "chat.message"
+// matches frames where "event" == "chat.message"
 r.On("chat.message", func(c *router.Context) {
     srv.Broadcast(c.Connection.RoomID(), server.Frame{
-        Type:    "chat.message",
+        Event:    "chat.message",
         Payload: c.Frame.Payload,
     })
 })
 
-// matches frames where "type" == "ping"
+// matches frames where "event" == "ping"
 r.On("ping", func(c *router.Context) {
-    _ = c.Connection.Send(server.Frame{Type: "pong"})
+    _ = c.Connection.Send(server.Frame{Event: "pong"})
 })
 
 srv := server.NewServer(

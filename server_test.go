@@ -37,7 +37,7 @@ func acceptAll(r *http.Request) (roomID, connectionID string, err error) {
 func TestServer_Send_ErrConnectionNotFound(t *testing.T) {
 	srv := wspulse.NewServer(acceptAll)
 	t.Cleanup(srv.Close)
-	err := srv.Send("does-not-exist", wspulse.Frame{Type: "ping"})
+	err := srv.Send("does-not-exist", wspulse.Frame{Event: "ping"})
 	if !errors.Is(err, wspulse.ErrConnectionNotFound) {
 		t.Fatalf("want ErrConnectionNotFound, got %v", err)
 	}
@@ -82,7 +82,7 @@ func TestServer_OnConnect_SendsFrame(t *testing.T) {
 	srv := wspulse.NewServer(
 		acceptAll,
 		wspulse.WithOnConnect(func(connection wspulse.Connection) {
-			_ = connection.Send(wspulse.Frame{Type: "welcome", Payload: []byte(`"hello"`)})
+			_ = connection.Send(wspulse.Frame{Event: "welcome", Payload: []byte(`"hello"`)})
 		}),
 	)
 	t.Cleanup(srv.Close)
@@ -96,8 +96,8 @@ func TestServer_OnConnect_SendsFrame(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Decode failed: %v", err)
 	}
-	if f.Type != "welcome" {
-		t.Errorf("Type: want %q, got %q", "welcome", f.Type)
+	if f.Event != "welcome" {
+		t.Errorf("Event: want %q, got %q", "welcome", f.Event)
 	}
 }
 
@@ -112,14 +112,14 @@ func TestServer_OnMessage_CallbackFires(t *testing.T) {
 	t.Cleanup(srv.Close)
 	c := dialTestServer(t, srv)
 	payload := []byte(`{"text":"ping from client"}`)
-	encoded, _ := wspulse.JSONCodec.Encode(wspulse.Frame{Type: "msg", Payload: payload})
+	encoded, _ := wspulse.JSONCodec.Encode(wspulse.Frame{Event: "msg", Payload: payload})
 	if err := c.WriteMessage(websocket.TextMessage, encoded); err != nil {
 		t.Fatalf("WriteMessage failed: %v", err)
 	}
 	select {
 	case f := <-received:
-		if f.Type != "msg" {
-			t.Errorf("Type: want %q, got %q", "msg", f.Type)
+		if f.Event != "msg" {
+			t.Errorf("Event: want %q, got %q", "msg", f.Event)
 		}
 	case <-time.After(3 * time.Second):
 		t.Fatal("timed out waiting for OnMessage callback")
@@ -144,7 +144,7 @@ func TestServer_Broadcast_ReachesConnectedClient(t *testing.T) {
 	case <-time.After(3 * time.Second):
 		t.Fatal("timed out waiting for connection to register")
 	}
-	frame := wspulse.Frame{Type: "notice", Payload: []byte(`"hello room"`)}
+	frame := wspulse.Frame{Event: "notice", Payload: []byte(`"hello room"`)}
 	if err := srv.Broadcast("test-room", frame); err != nil {
 		t.Fatalf("Broadcast failed: %v", err)
 	}
@@ -157,8 +157,8 @@ func TestServer_Broadcast_ReachesConnectedClient(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Decode failed: %v", err)
 	}
-	if f.Type != "notice" {
-		t.Errorf("Type: want %q, got %q", "notice", f.Type)
+	if f.Event != "notice" {
+		t.Errorf("Event: want %q, got %q", "notice", f.Event)
 	}
 }
 
@@ -214,7 +214,7 @@ func TestServer_Send_DeliversFrameToConnection(t *testing.T) {
 	case <-time.After(3 * time.Second):
 		t.Fatal("timed out waiting for connection to register")
 	}
-	frame := wspulse.Frame{Type: "direct", Payload: []byte(`"hi"`)}
+	frame := wspulse.Frame{Event: "direct", Payload: []byte(`"hi"`)}
 	if err := srv.Send("test-connection", frame); err != nil {
 		t.Fatalf("Send failed: %v", err)
 	}
@@ -227,8 +227,8 @@ func TestServer_Send_DeliversFrameToConnection(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Decode failed: %v", err)
 	}
-	if f.Type != "direct" {
-		t.Errorf("Type: want %q, got %q", "direct", f.Type)
+	if f.Event != "direct" {
+		t.Errorf("Event: want %q, got %q", "direct", f.Event)
 	}
 }
 
@@ -390,7 +390,7 @@ func TestServer_DuplicateConnectionID_OldKickedNewReachable(t *testing.T) {
 	}
 
 	// Server.Send must reach the new connection, not return ErrConnectionNotFound.
-	frame := wspulse.Frame{Type: "ok", Payload: []byte(`"after-kick"`)}
+	frame := wspulse.Frame{Event: "ok", Payload: []byte(`"after-kick"`)}
 	if err := srv.Send("test-connection", frame); err != nil {
 		t.Fatalf("Send to second connection failed: %v", err)
 	}
@@ -403,8 +403,8 @@ func TestServer_DuplicateConnectionID_OldKickedNewReachable(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Decode failed: %v", err)
 	}
-	if f.Type != "ok" {
-		t.Errorf("Type: want %q, got %q", "ok", f.Type)
+	if f.Event != "ok" {
+		t.Errorf("Event: want %q, got %q", "ok", f.Event)
 	}
 }
 
@@ -470,7 +470,7 @@ func TestServer_ConcurrentBroadcast_NoRace(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			for j := 0; j < messagesPerWorker; j++ {
-				_ = srv.Broadcast("room", wspulse.Frame{Type: "ping"})
+				_ = srv.Broadcast("room", wspulse.Frame{Event: "ping"})
 			}
 		}()
 	}
@@ -554,7 +554,7 @@ func TestServer_BroadcastDropsOldest_SlowClient(t *testing.T) {
 		if i == totalBroadcasts-1 {
 			typ = "newest"
 		}
-		_ = srv.Broadcast("test-room", wspulse.Frame{Type: typ, Payload: []byte(`"x"`)})
+		_ = srv.Broadcast("test-room", wspulse.Frame{Event: typ, Payload: []byte(`"x"`)})
 	}
 
 	time.Sleep(300 * time.Millisecond)
@@ -579,7 +579,7 @@ func TestServer_BroadcastDropsOldest_SlowClient(t *testing.T) {
 
 	found := false
 	for _, f := range frames {
-		if f.Type == "newest" {
+		if f.Event == "newest" {
 			found = true
 			break
 		}
@@ -666,7 +666,7 @@ func TestServer_ReadPumpPanicRecovery(t *testing.T) {
 	t.Cleanup(srv.Close)
 	c := dialTestServer(t, srv)
 
-	data, _ := wspulse.JSONCodec.Encode(wspulse.Frame{Type: "trigger"})
+	data, _ := wspulse.JSONCodec.Encode(wspulse.Frame{Event: "trigger"})
 	_ = c.WriteMessage(websocket.TextMessage, data)
 
 	select {
@@ -679,7 +679,7 @@ func TestServer_ReadPumpPanicRecovery(t *testing.T) {
 func TestServer_Broadcast_AfterClose_ReturnsErrServerClosed(t *testing.T) {
 	srv := wspulse.NewServer(acceptAll)
 	srv.Close()
-	err := srv.Broadcast("test-room", wspulse.Frame{Type: "msg"})
+	err := srv.Broadcast("test-room", wspulse.Frame{Event: "msg"})
 	if !errors.Is(err, wspulse.ErrServerClosed) {
 		t.Fatalf("want ErrServerClosed, got %v", err)
 	}
@@ -712,7 +712,7 @@ func TestServer_ConnectionSend_BufferFull_ReturnsErrSendBufferFull(t *testing.T)
 			t.Fatal("timed out: never saw ErrSendBufferFull")
 		default:
 		}
-		err := connection.Send(wspulse.Frame{Type: "flood"})
+		err := connection.Send(wspulse.Frame{Event: "flood"})
 		if errors.Is(err, wspulse.ErrSendBufferFull) {
 			return // success
 		}
@@ -788,7 +788,7 @@ func TestServer_MultipleRooms_BroadcastIsolation(t *testing.T) {
 
 	time.Sleep(100 * time.Millisecond)
 
-	if err := srv.Broadcast("room-a", wspulse.Frame{Type: "hello"}); err != nil {
+	if err := srv.Broadcast("room-a", wspulse.Frame{Event: "hello"}); err != nil {
 		t.Fatalf("Broadcast failed: %v", err)
 	}
 
@@ -899,7 +899,7 @@ func TestServer_Resume_ReconnectWithinWindow(t *testing.T) {
 
 	time.Sleep(200 * time.Millisecond)
 
-	frame := wspulse.Frame{Type: "after-resume", Payload: []byte(`"ok"`)}
+	frame := wspulse.Frame{Event: "after-resume", Payload: []byte(`"ok"`)}
 	if err := srv.Send("test-connection", frame); err != nil {
 		t.Fatalf("Send after resume failed: %v", err)
 	}
@@ -909,8 +909,8 @@ func TestServer_Resume_ReconnectWithinWindow(t *testing.T) {
 		t.Fatalf("ReadMessage on resumed connection failed: %v", err)
 	}
 	f, _ := wspulse.JSONCodec.Decode(message)
-	if f.Type != "after-resume" {
-		t.Errorf("Type: want %q, got %q", "after-resume", f.Type)
+	if f.Event != "after-resume" {
+		t.Errorf("Event: want %q, got %q", "after-resume", f.Event)
 	}
 
 	select {
@@ -985,7 +985,7 @@ func TestServer_Resume_BufferedFramesDelivered(t *testing.T) {
 
 	for i := 0; i < 3; i++ {
 		_ = srv.Send("test-connection", wspulse.Frame{
-			Type:    "buffered",
+			Event:   "buffered",
 			Payload: []byte(`"` + string(rune('a'+i)) + `"`),
 		})
 	}
@@ -1013,8 +1013,8 @@ func TestServer_Resume_BufferedFramesDelivered(t *testing.T) {
 		t.Fatalf("want 3 buffered frames, got %d", len(frames))
 	}
 	for _, f := range frames {
-		if f.Type != "buffered" {
-			t.Errorf("Type: want %q, got %q", "buffered", f.Type)
+		if f.Event != "buffered" {
+			t.Errorf("Event: want %q, got %q", "buffered", f.Event)
 		}
 	}
 }
@@ -1162,7 +1162,7 @@ func TestServer_Resume_BroadcastWhileSuspended(t *testing.T) {
 	_ = c1.Close()
 	time.Sleep(200 * time.Millisecond)
 
-	_ = srv.Broadcast("test-room", wspulse.Frame{Type: "bcast", Payload: []byte(`"suspended"`)})
+	_ = srv.Broadcast("test-room", wspulse.Frame{Event: "bcast", Payload: []byte(`"suspended"`)})
 
 	u := "ws" + strings.TrimPrefix(ts.URL, "http")
 	dialer := websocket.Dialer{HandshakeTimeout: 3 * time.Second}
@@ -1178,8 +1178,8 @@ func TestServer_Resume_BroadcastWhileSuspended(t *testing.T) {
 		t.Fatalf("ReadMessage failed: %v", err)
 	}
 	f, _ := wspulse.JSONCodec.Decode(message)
-	if f.Type != "bcast" {
-		t.Errorf("Type: want %q, got %q", "bcast", f.Type)
+	if f.Event != "bcast" {
+		t.Errorf("Event: want %q, got %q", "bcast", f.Event)
 	}
 }
 
@@ -1232,7 +1232,7 @@ func TestServer_Resume_ConcurrentBroadcastDuringResume_NoRace(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			for j := 0; j < 50; j++ {
-				_ = srv.Broadcast("test-room", wspulse.Frame{Type: "ping"})
+				_ = srv.Broadcast("test-room", wspulse.Frame{Event: "ping"})
 				time.Sleep(time.Millisecond)
 			}
 		}()
@@ -1457,7 +1457,7 @@ func TestServer_ConnectionSend_AfterClose_ReturnsErrConnectionClosed(t *testing.
 	_ = srv.Kick(connection.ID())
 	<-connection.Done()
 
-	err := connection.Send(wspulse.Frame{Type: "nope"})
+	err := connection.Send(wspulse.Frame{Event: "nope"})
 	if !errors.Is(err, wspulse.ErrConnectionClosed) {
 		t.Fatalf("want ErrConnectionClosed, got %v", err)
 	}
@@ -1487,7 +1487,7 @@ func TestServer_Broadcast_SkipsClosedSession(t *testing.T) {
 
 	_ = srv.Kick("test-connection")
 	// Broadcast after kick — the session is closed and should be skipped.
-	_ = srv.Broadcast("test-room", wspulse.Frame{Type: "after-kick"})
+	_ = srv.Broadcast("test-room", wspulse.Frame{Event: "after-kick"})
 }
 
 // ── readPump edge case tests ──────────────────────────────────────────────────
@@ -1509,15 +1509,15 @@ func TestServer_ReadPump_MalformedFrame_DropsAndContinues(t *testing.T) {
 		t.Fatalf("WriteMessage (malformed) failed: %v", err)
 	}
 	// Send a valid frame after the malformed one — readPump should continue.
-	validData, _ := wspulse.JSONCodec.Encode(wspulse.Frame{Type: "valid"})
+	validData, _ := wspulse.JSONCodec.Encode(wspulse.Frame{Event: "valid"})
 	if err := c.WriteMessage(websocket.TextMessage, validData); err != nil {
 		t.Fatalf("WriteMessage (valid) failed: %v", err)
 	}
 
 	select {
 	case f := <-received:
-		if f.Type != "valid" {
-			t.Errorf("Type: want %q, got %q", "valid", f.Type)
+		if f.Event != "valid" {
+			t.Errorf("Event: want %q, got %q", "valid", f.Event)
 		}
 	case <-time.After(3 * time.Second):
 		t.Fatal("timed out waiting for valid frame after malformed one")
@@ -1591,7 +1591,7 @@ func TestServer_Resume_StaleClosedSession_Reconnect(t *testing.T) {
 	}
 
 	// Verify the new connection works.
-	if err := srv.Send("test-connection", wspulse.Frame{Type: "alive"}); err != nil {
+	if err := srv.Send("test-connection", wspulse.Frame{Event: "alive"}); err != nil {
 		t.Fatalf("Send failed: %v", err)
 	}
 	_ = c2.SetReadDeadline(time.Now().Add(3 * time.Second))
@@ -1600,8 +1600,8 @@ func TestServer_Resume_StaleClosedSession_Reconnect(t *testing.T) {
 		t.Fatalf("ReadMessage failed: %v", err)
 	}
 	f, _ := wspulse.JSONCodec.Decode(message)
-	if f.Type != "alive" {
-		t.Errorf("Type: want %q, got %q", "alive", f.Type)
+	if f.Event != "alive" {
+		t.Errorf("Event: want %q, got %q", "alive", f.Event)
 	}
 }
 
@@ -1702,7 +1702,7 @@ func TestServer_ConcurrentCloseAndBroadcast_NoRace(t *testing.T) {
 	go func() {
 		defer wg.Done()
 		for i := 0; i < 50; i++ {
-			_ = srv.Broadcast("test-room", wspulse.Frame{Type: "msg"})
+			_ = srv.Broadcast("test-room", wspulse.Frame{Event: "msg"})
 		}
 	}()
 	wg.Wait()
@@ -1784,7 +1784,7 @@ func TestServer_Resume_MultipleRapidCycles(t *testing.T) {
 func TestServer_Broadcast_EmptyRoom_NoError(t *testing.T) {
 	srv := wspulse.NewServer(acceptAll)
 	t.Cleanup(srv.Close)
-	err := srv.Broadcast("nonexistent-room", wspulse.Frame{Type: "msg"})
+	err := srv.Broadcast("nonexistent-room", wspulse.Frame{Event: "msg"})
 	if err != nil {
 		t.Fatalf("expected no error for empty room, got %v", err)
 	}
@@ -1825,7 +1825,7 @@ func TestServer_Broadcast_EncodeError_ReturnsError(t *testing.T) {
 		t.Fatal("timed out waiting for connect")
 	}
 
-	err := srv.Broadcast("test-room", wspulse.Frame{Type: "fail"})
+	err := srv.Broadcast("test-room", wspulse.Frame{Event: "fail"})
 	if err == nil {
 		t.Fatal("expected encode error from Broadcast")
 	}
@@ -1850,7 +1850,7 @@ func TestServer_ConnectionSend_EncodeError_ReturnsError(t *testing.T) {
 		t.Fatal("timed out waiting for connect")
 	}
 
-	err := connection.Send(wspulse.Frame{Type: "fail"})
+	err := connection.Send(wspulse.Frame{Event: "fail"})
 	if err == nil {
 		t.Fatal("expected encode error from Send")
 	}
@@ -1967,7 +1967,7 @@ func TestServer_Resume_StaleGraceTimerIgnored(t *testing.T) {
 	default:
 	}
 
-	if err := srv.Send("test-connection", wspulse.Frame{Type: "alive"}); err != nil {
+	if err := srv.Send("test-connection", wspulse.Frame{Event: "alive"}); err != nil {
 		t.Fatalf("Send after stale timers failed: %v", err)
 	}
 }
@@ -2083,7 +2083,7 @@ func TestServer_Send_AfterClose_ReturnsErrConnectionNotFound(t *testing.T) {
 	srv := wspulse.NewServer(acceptAll)
 	srv.Close()
 	// After close, hub maps are empty — returns ErrConnectionNotFound.
-	err := srv.Send("any", wspulse.Frame{Type: "x"})
+	err := srv.Send("any", wspulse.Frame{Event: "x"})
 	if !errors.Is(err, wspulse.ErrConnectionNotFound) {
 		t.Fatalf("want ErrConnectionNotFound, got %v", err)
 	}
@@ -2235,7 +2235,7 @@ func TestServer_Resume_WritePumpStopsOnPumpQuit(t *testing.T) {
 	}
 
 	// Send data before closing to ensure writePump is active.
-	_ = srv.Send("test-connection", wspulse.Frame{Type: "pre-suspend"})
+	_ = srv.Send("test-connection", wspulse.Frame{Event: "pre-suspend"})
 	_ = c1.SetReadDeadline(time.Now().Add(2 * time.Second))
 	_, _, err := c1.ReadMessage()
 	if err != nil {
@@ -2258,15 +2258,15 @@ func TestServer_Resume_WritePumpStopsOnPumpQuit(t *testing.T) {
 
 	// If old writePump didn't exit via pumpQuit, the new pump wouldn't start,
 	// and this Send would time out.
-	_ = srv.Send("test-connection", wspulse.Frame{Type: "post-resume"})
+	_ = srv.Send("test-connection", wspulse.Frame{Event: "post-resume"})
 	_ = c2.SetReadDeadline(time.Now().Add(3 * time.Second))
 	_, msg, err := c2.ReadMessage()
 	if err != nil {
 		t.Fatalf("ReadMessage on resumed connection failed: %v", err)
 	}
 	f, _ := wspulse.JSONCodec.Decode(msg)
-	if f.Type != "post-resume" {
-		t.Errorf("Type: want %q, got %q", "post-resume", f.Type)
+	if f.Event != "post-resume" {
+		t.Errorf("Event: want %q, got %q", "post-resume", f.Event)
 	}
 }
 
@@ -2278,7 +2278,7 @@ func TestServer_NoOnMessage_ReadPumpStillProcesses(t *testing.T) {
 	c := dialTestServer(t, srv)
 
 	// Send a frame — readPump should process without crash.
-	data, _ := wspulse.JSONCodec.Encode(wspulse.Frame{Type: "ignored"})
+	data, _ := wspulse.JSONCodec.Encode(wspulse.Frame{Event: "ignored"})
 	if err := c.WriteMessage(websocket.TextMessage, data); err != nil {
 		t.Fatalf("WriteMessage failed: %v", err)
 	}
@@ -2342,7 +2342,7 @@ func TestServer_Resume_ConnectionCloseWhileSuspended_ThenReconnect(t *testing.T)
 	}
 
 	// Verify new session works.
-	if err := srv.Send("test-connection", wspulse.Frame{Type: "after-stale"}); err != nil {
+	if err := srv.Send("test-connection", wspulse.Frame{Event: "after-stale"}); err != nil {
 		t.Fatalf("Send failed: %v", err)
 	}
 	_ = c2.SetReadDeadline(time.Now().Add(3 * time.Second))
@@ -2351,8 +2351,8 @@ func TestServer_Resume_ConnectionCloseWhileSuspended_ThenReconnect(t *testing.T)
 		t.Fatalf("ReadMessage failed: %v", err)
 	}
 	f, _ := wspulse.JSONCodec.Decode(msg)
-	if f.Type != "after-stale" {
-		t.Errorf("Type: want %q, got %q", "after-stale", f.Type)
+	if f.Event != "after-stale" {
+		t.Errorf("Event: want %q, got %q", "after-stale", f.Event)
 	}
 }
 
@@ -2383,7 +2383,7 @@ func TestServer_Broadcast_SkipsDirectlyClosedSession(t *testing.T) {
 	_ = connection.Close()
 
 	// Broadcast should skip the closed session without error.
-	err := srv.Broadcast("test-room", wspulse.Frame{Type: "skip-me"})
+	err := srv.Broadcast("test-room", wspulse.Frame{Event: "skip-me"})
 	if err != nil {
 		t.Fatalf("Broadcast returned error: %v", err)
 	}
@@ -2430,15 +2430,15 @@ func TestServer_Resume_WritePumpExitsViaPumpQuit(t *testing.T) {
 	t.Cleanup(func() { _ = c2.Close() })
 	time.Sleep(200 * time.Millisecond)
 
-	_ = srv.Send("test-connection", wspulse.Frame{Type: "verify"})
+	_ = srv.Send("test-connection", wspulse.Frame{Event: "verify"})
 	_ = c2.SetReadDeadline(time.Now().Add(3 * time.Second))
 	_, msg, err := c2.ReadMessage()
 	if err != nil {
 		t.Fatalf("ReadMessage failed: %v", err)
 	}
 	f, _ := wspulse.JSONCodec.Decode(msg)
-	if f.Type != "verify" {
-		t.Errorf("Type: want %q, got %q", "verify", f.Type)
+	if f.Event != "verify" {
+		t.Errorf("Event: want %q, got %q", "verify", f.Event)
 	}
 }
 
@@ -2471,7 +2471,7 @@ func TestServer_ConnectionSend_DoneClosesDuringEnqueue(t *testing.T) {
 	go func() {
 		defer wg.Done()
 		for i := 0; i < 100; i++ {
-			err := connection.Send(wspulse.Frame{Type: "flood"})
+			err := connection.Send(wspulse.Frame{Event: "flood"})
 			if err != nil {
 				return
 			}
@@ -2490,7 +2490,7 @@ func TestServer_ConnectionSend_DoneClosesDuringEnqueue(t *testing.T) {
 func TestServer_Broadcast_AfterClose(t *testing.T) {
 	srv := wspulse.NewServer(acceptAll)
 	srv.Close()
-	err := srv.Broadcast("test-room", wspulse.Frame{Type: "hello"})
+	err := srv.Broadcast("test-room", wspulse.Frame{Event: "hello"})
 	if !errors.Is(err, wspulse.ErrServerClosed) {
 		t.Fatalf("want ErrServerClosed, got %v", err)
 	}
@@ -2665,7 +2665,7 @@ func TestServer_Resume_GraceTimerFiresAfterReconnect(t *testing.T) {
 	time.Sleep(1500 * time.Millisecond)
 
 	// Session should still be alive — verify by sending a frame.
-	frame := wspulse.Frame{Type: "still-alive", Payload: []byte(`"ok"`)}
+	frame := wspulse.Frame{Event: "still-alive", Payload: []byte(`"ok"`)}
 	if err := srv.Send("test-connection", frame); err != nil {
 		t.Fatalf("Send after grace timer expired should succeed: %v", err)
 	}
@@ -2675,8 +2675,8 @@ func TestServer_Resume_GraceTimerFiresAfterReconnect(t *testing.T) {
 		t.Fatalf("ReadMessage failed: %v", err)
 	}
 	f, _ := wspulse.JSONCodec.Decode(message)
-	if f.Type != "still-alive" {
-		t.Errorf("want type %q, got %q", "still-alive", f.Type)
+	if f.Event != "still-alive" {
+		t.Errorf("want type %q, got %q", "still-alive", f.Event)
 	}
 
 	select {
@@ -2831,7 +2831,7 @@ func TestServer_Resume_DrainBufferFull(t *testing.T) {
 	// and triggers the drop-oldest backpressure in the drain loop.
 	for i := 0; i < 3; i++ {
 		_ = srv.Send("test-connection", wspulse.Frame{
-			Type:    "buffered",
+			Event:   "buffered",
 			Payload: []byte(`"` + string(rune('a'+i)) + `"`),
 		})
 	}
@@ -2853,8 +2853,8 @@ func TestServer_Resume_DrainBufferFull(t *testing.T) {
 		t.Fatalf("ReadMessage failed: %v", err)
 	}
 	f, _ := wspulse.JSONCodec.Decode(message)
-	if f.Type != "buffered" {
-		t.Errorf("want type %q, got %q", "buffered", f.Type)
+	if f.Event != "buffered" {
+		t.Errorf("want type %q, got %q", "buffered", f.Event)
 	}
 
 	// Session should still be alive.
