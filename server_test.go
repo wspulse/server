@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -2909,18 +2910,12 @@ func TestServer_Resume_ConnectionCloseWhileSuspended_FiresOnDisconnect(t *testin
 	}
 
 	// Application calls Close() on the suspended Connection.
-	start := time.Now()
 	_ = connection.Close()
 
-	// onDisconnect must fire when the grace timer expires (~1 second), not immediately.
-	// ~200ms of the 1s grace window already elapsed, so ~800ms remain; threshold is 700ms
-	// to prove Close() did not trigger onDisconnect instantly.
+	// onDisconnect must fire after Connection.Close() on a suspended session.
+	// The exact timing is verified by TestServer_Resume_ConnectionClose_ImmediateOnDisconnect.
 	select {
 	case <-disconnected:
-		elapsed := time.Since(start)
-		if elapsed < 700*time.Millisecond {
-			t.Fatalf("onDisconnect fired too early: %v after Connection.Close(), want >= 700ms", elapsed)
-		}
 	case <-time.After(3 * time.Second):
 		t.Fatal("onDisconnect did not fire after Connection.Close() on suspended session")
 	}
@@ -2929,6 +2924,160 @@ func TestServer_Resume_ConnectionCloseWhileSuspended_FiresOnDisconnect(t *testin
 	time.Sleep(50 * time.Millisecond)
 	if conns := srv.GetConnections("test-room"); len(conns) != 0 {
 		t.Errorf("want 0 connections after Close + grace expiry, got %d", len(conns))
+	}
+}
+
+// TestServer_Resume_ConnectionClose_ImmediateOnDisconnect verifies that calling
+// Connection.Close() on a suspended session fires onDisconnect immediately
+// (within a short window), not after the full grace timer expires.
+//
+// Regression: previously onDisconnect was delayed until the grace timer
+// fired naturally, even if the application had already called Close().
+func TestServer_Resume_ConnectionClose_ImmediateOnDisconnect(t *testing.T) {
+	connected := make(chan wspulse.Connection, 1)
+	disconnected := make(chan struct{})
+	var once sync.Once
+
+	const gracePeriod = 5 * time.Second // long enough to expose the bug
+
+	srv := wspulse.NewServer(
+		acceptAll,
+		wspulse.WithResumeWindow(int(gracePeriod.Seconds())),
+		wspulse.WithOnConnect(func(connection wspulse.Connection) {
+			select {
+			case connected <- connection:
+			default:
+			}
+		}),
+		wspulse.WithOnDisconnect(func(connection wspulse.Connection, err error) {
+			once.Do(func() { close(disconnected) })
+		}),
+	)
+	t.Cleanup(srv.Close)
+
+	c := dialTestServer(t, srv)
+	var connection wspulse.Connection
+	select {
+	case connection = <-connected:
+	case <-time.After(3 * time.Second):
+		t.Fatal("timed out waiting for connect")
+	}
+
+	// Drop the transport — session enters suspended state.
+	_ = c.WriteMessage(websocket.CloseMessage,
+		websocket.FormatCloseMessage(websocket.CloseNormalClosure, "dropping"))
+	_ = c.Close()
+	time.Sleep(200 * time.Millisecond) // let hub process transportDied
+
+	// Application calls Close() on the suspended session.
+	start := time.Now()
+	_ = connection.Close()
+
+	// onDisconnect must fire promptly after Close(), not after the full 5-second
+	// grace window. Allow up to 500ms for hub round-trip overhead.
+	const wantWithin = 500 * time.Millisecond
+	select {
+	case <-disconnected:
+		if elapsed := time.Since(start); elapsed > wantWithin {
+			t.Fatalf("onDisconnect took %v after Connection.Close(), want < %v", elapsed, wantWithin)
+		}
+	case <-time.After(gracePeriod):
+		t.Fatalf("onDisconnect did not fire within %v; fired after full grace window instead", gracePeriod)
+	}
+
+	// Session must be removed from hub maps after onDisconnect.
+	time.Sleep(50 * time.Millisecond)
+	if conns := srv.GetConnections("test-room"); len(conns) != 0 {
+		t.Errorf("want 0 connections after Close, got %d", len(conns))
+	}
+}
+
+// TestServer_Resume_MassCloseWhileSuspended_AllOnDisconnect verifies that
+// when many suspended sessions call Close() concurrently, every single
+// onDisconnect callback fires. The closeRequests channel has a buffer of 64;
+// this test uses 200 sessions to overflow it and expose a non-blocking send
+// that silently drops the message (the grace timer is already stopped, so
+// no fallback exists).
+func TestServer_Resume_MassCloseWhileSuspended_AllOnDisconnect(t *testing.T) {
+	const count = 200
+
+	var mu sync.Mutex
+	connections := make([]wspulse.Connection, 0, count)
+	allConnected := make(chan struct{})
+	disconnectCount := atomic.Int64{}
+	allDisconnected := make(chan struct{})
+
+	srv := wspulse.NewServer(
+		func(r *http.Request) (string, string, error) {
+			return "room", "", nil // auto UUID per connection
+		},
+		wspulse.WithResumeWindow(30), // long grace window
+		wspulse.WithOnConnect(func(connection wspulse.Connection) {
+			mu.Lock()
+			connections = append(connections, connection)
+			n := len(connections)
+			mu.Unlock()
+			if n == count {
+				close(allConnected)
+			}
+		}),
+		wspulse.WithOnDisconnect(func(connection wspulse.Connection, err error) {
+			if disconnectCount.Add(1) == int64(count) {
+				close(allDisconnected)
+			}
+		}),
+	)
+	t.Cleanup(srv.Close)
+
+	// Dial count connections.
+	ts := httptest.NewServer(srv)
+	t.Cleanup(ts.Close)
+
+	u := "ws" + strings.TrimPrefix(ts.URL, "http")
+	websockets := make([]*websocket.Conn, count)
+	for i := 0; i < count; i++ {
+		c, _, err := websocket.DefaultDialer.Dial(u, nil)
+		if err != nil {
+			t.Fatalf("Dial %d: %v", i, err)
+		}
+		websockets[i] = c
+	}
+
+	select {
+	case <-allConnected:
+	case <-time.After(10 * time.Second):
+		t.Fatal("timed out waiting for all connections")
+	}
+
+	// Drop all transports → all sessions enter suspended state.
+	for _, ws := range websockets {
+		_ = ws.WriteMessage(websocket.CloseMessage,
+			websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
+		_ = ws.Close()
+	}
+	time.Sleep(1 * time.Second) // let hub process all transportDied messages
+
+	// Close all suspended sessions concurrently to saturate closeRequests buffer.
+	mu.Lock()
+	snapshot := make([]wspulse.Connection, len(connections))
+	copy(snapshot, connections)
+	mu.Unlock()
+
+	var wg sync.WaitGroup
+	for _, c := range snapshot {
+		wg.Add(1)
+		go func(conn wspulse.Connection) {
+			defer wg.Done()
+			_ = conn.Close()
+		}(c)
+	}
+	wg.Wait()
+
+	select {
+	case <-allDisconnected:
+	case <-time.After(5 * time.Second):
+		got := disconnectCount.Load()
+		t.Fatalf("want %d onDisconnect calls, got %d (lost %d)", count, got, count-got)
 	}
 }
 

@@ -202,8 +202,8 @@ func (h *hub) handleRegister(message registerMessage) {
 }
 
 // handleTransportDied processes a dead WebSocket transport.
-// If resume is enabled and the session is still connected, transition to
-// suspended and start the grace timer. Otherwise destroy the session.
+// If resume is enabled and the session state is stateConnected, transition
+// to stateSuspended and start the grace timer. Otherwise destroy the session.
 func (h *hub) handleTransportDied(message transportDiedMessage) {
 	target := message.session
 
@@ -336,10 +336,8 @@ func (h *hub) handleGraceExpired(message graceExpiredMessage) {
 	h.removeSession(target)
 
 	// For stateSuspended: normal window expiry — Close() then onDisconnect.
-	// For stateClosed: Connection.Close() was called on the suspended session
-	// before the timer fired. Fire onDisconnect to match connected-session
-	// behaviour. Double-fire with Kick is prevented because handleKick calls
-	// removeSession which bumps suspendEpoch, making this message stale.
+	// For stateClosed: application called Close() on the suspended session,
+	// which Reset the timer to 0 to force immediate expiry.
 	if state == stateSuspended {
 		_ = target.Close()
 		h.config.logger.Info("wspulse: session expired",

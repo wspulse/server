@@ -10,7 +10,7 @@
 
 ### Fixed
 
-- `Connection.Close()` on a suspended session now correctly fires `OnDisconnect` when the grace timer expires; previously, the callback was silently skipped for sessions closed while suspended
+- `Connection.Close()` on a suspended session now immediately cancels the grace timer and fires `OnDisconnect`; previously the callback was delayed until the grace window expired
 - `removeSession` now bumps `suspendEpoch` to prevent `OnDisconnect` from double-firing when `Kick` races with a simultaneously-expiring grace timer
 
 ---

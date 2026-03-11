@@ -168,10 +168,21 @@ func (s *session) Close() error {
 		)
 		s.mu.Lock()
 		s.state = stateClosed
+		timer := s.graceTimer
+		s.graceTimer = nil
 		if s.resumeBuffer != nil {
 			s.resumeBuffer = nil
 		}
 		s.mu.Unlock()
+
+		if timer != nil {
+			// Session is currently suspended. Reset the grace timer to fire
+			// immediately so handleGraceExpired sees stateClosed and triggers
+			// removeSession + onDisconnect via the existing graceExpired path.
+			// This avoids introducing a separate channel between session and hub.
+			timer.Reset(0)
+		}
+
 		close(s.done)
 	})
 	return nil

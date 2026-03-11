@@ -178,7 +178,7 @@ Connected → Closed    : duplicate connectionID arrives (old session kicked, on
 
 Suspended → Connected : same connectionID reconnect (cancel timer, replay buffer, no callback)
 Suspended → Closed    : timer expires (onDisconnect fires, session destroyed)
-Suspended → Closed    : Connection.Close() (timer fires at expiry, onDisconnect fires)
+Suspended → Closed    : Connection.Close() called (cancel timer, onDisconnect fires immediately)
 Suspended → Closed    : Kick() or server.Close() (cancel timer, onDisconnect fires immediately)
 
 Closed → [*]
