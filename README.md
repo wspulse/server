@@ -76,6 +76,38 @@ srv.Kick(connectionID)
 connections := srv.GetConnections(roomID)
 ```
 
+### Event Routing with `core/router`
+
+`core/router` provides Gin-style middleware and per-event handler dispatch. `server.Connection` satisfies `router.Connection` via structural subtyping — no adaptor needed.
+
+```go
+import (
+    "github.com/wspulse/server"
+    "github.com/wspulse/core/router"
+)
+
+rtr := router.New()
+rtr.Use(router.Recovery()) // recover from panics in handlers
+
+rtr.On("chat.message", func(c *router.Context) {
+    srv.Broadcast(c.Connection.RoomID(), c.Frame)
+})
+rtr.On("chat.join", func(c *router.Context) {
+    welcome := server.Frame{Event: "chat.welcome", Payload: []byte(`"hello"`)}
+    _ = c.Connection.Send(welcome)
+})
+
+var srv server.Server
+srv = server.NewServer(
+    connectFunc,
+    server.WithOnMessage(func(conn server.Connection, f server.Frame) {
+        rtr.Dispatch(conn, f)
+    }),
+)
+```
+
+See [wspulse/core](https://github.com/wspulse/core) for the full `router` API.
+
 ---
 
 ## Public API Surface
