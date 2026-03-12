@@ -2357,6 +2357,96 @@ func TestServer_Resume_ConnectionCloseWhileSuspended_ThenReconnect(t *testing.T)
 	}
 }
 
+// ── Resume: stateClosed path in handleRegister fires onDisconnect ─────────────
+
+func TestServer_Resume_StaleClosedSession_OnDisconnectFires(t *testing.T) {
+	// Regression test: handleRegister's stateClosed branch must fire onDisconnect.
+	// When Close() is called on a suspended session and a new connection with
+	// the same ID arrives before the hub processes the resulting
+	// graceExpiredMessage, handleRegister finds the session in stateClosed and
+	// previously called removeSession directly — silently dropping onDisconnect.
+	// The fix: use disconnectSession so onDisconnect always fires.
+	//
+	// The race window is narrow; we run many cycles so it is triggered across
+	// the -count=3 test runs.
+	const cycles = 200
+
+	var connects, disconnects atomic.Int32
+
+	srv := wspulse.NewServer(
+		acceptAll,
+		wspulse.WithResumeWindow(60), // long window; grace won't expire naturally
+		wspulse.WithOnConnect(func(_ wspulse.Connection) { connects.Add(1) }),
+		wspulse.WithOnDisconnect(func(_ wspulse.Connection, _ error) { disconnects.Add(1) }),
+	)
+	t.Cleanup(srv.Close)
+
+	c, ts := dialTestServerRaw(t, srv)
+	u := "ws" + strings.TrimPrefix(ts.URL, "http")
+	dialer := websocket.Dialer{HandshakeTimeout: 3 * time.Second}
+
+	// Wait for initial session.
+	for connects.Load() < 1 {
+		time.Sleep(time.Millisecond)
+	}
+
+	for i := 0; i < cycles; i++ {
+		// Capture expected total before any async onConnect fires for this cycle.
+		target := connects.Load() + 1
+
+		// Suspend the session by dropping the transport.
+		_ = c.Close()
+		// Allow hub to process transportDied → stateSuspended.
+		time.Sleep(20 * time.Millisecond)
+
+		// Call Close() on the suspended session: sets stateClosed and fires
+		// timer.Reset(0), which enqueues graceExpiredMessage via a goroutine.
+		conns := srv.GetConnections("test-room")
+		if len(conns) > 0 {
+			_ = conns[0].Close()
+		}
+
+		// Reconnect immediately — races the graceExpiredMessage goroutine.
+		var err error
+		c, _, err = dialer.Dial(u, nil)
+		if err != nil {
+			t.Fatalf("Dial failed on cycle %d: %v", i, err)
+		}
+
+		// Wait for new session's onConnect before next cycle.
+		deadline := time.NewTimer(3 * time.Second)
+		for connects.Load() < target {
+			select {
+			case <-deadline.C:
+				t.Fatalf("timeout waiting for connect on cycle %d", i)
+			default:
+				time.Sleep(time.Millisecond)
+			}
+		}
+		deadline.Stop()
+	}
+
+	// Close last transport; srv.Close() (via t.Cleanup) fires onDisconnect for
+	// the remaining session. We call it explicitly here to block until done.
+	_ = c.Close()
+	srv.Close()
+
+	// Every session that received onConnect must receive onDisconnect.
+	// connects = 1 (initial) + cycles (reconnects) = cycles+1.
+	// disconnects = cycles (old sessions) + 1 (last session via srv.Close) = cycles+1.
+	wantDisconnects := int32(cycles + 1)
+	deadline := time.After(5 * time.Second)
+	for disconnects.Load() < wantDisconnects {
+		select {
+		case <-deadline:
+			t.Fatalf("connects=%d disconnects=%d: onDisconnect not fired for all sessions",
+				connects.Load(), disconnects.Load())
+		default:
+			time.Sleep(10 * time.Millisecond)
+		}
+	}
+}
+
 // ── Broadcast covers done-check skip path ────────────────────────────────────
 
 func TestServer_Broadcast_SkipsDirectlyClosedSession(t *testing.T) {

@@ -150,11 +150,14 @@ func (h *hub) handleRegister(message registerMessage) {
 			h.disconnectSession(existing, ErrDuplicateConnectionID)
 
 		case stateClosed:
-			// Stale entry; clean up and fall through.
+			// Close() was called externally before the hub processed the
+			// resulting cleanup message (graceExpired or transportDied).
+			// Fire onDisconnect now; those paths will see the session is
+			// no longer registered and skip.
 			h.config.logger.Debug("wspulse: stale closed session removed",
 				zap.String("conn_id", message.connectionID),
 			)
-			h.removeSession(existing)
+			h.disconnectSession(existing, nil)
 		}
 	}
 
