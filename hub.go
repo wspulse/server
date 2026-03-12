@@ -403,12 +403,12 @@ func (h *hub) handleBroadcast(message broadcastMessage) {
 	)
 }
 
-// disconnectSession closes the session, removes it from hub maps, and fires
+// disconnectSession removes the session from hub maps, closes it, and fires
 // onDisconnect. Safe to call even if Close() was already called externally
 // (closeOnce makes it idempotent).
 func (h *hub) disconnectSession(target *session, err error) {
-	_ = target.Close()
 	h.removeSession(target)
+	_ = target.Close()
 	if fn := h.config.onDisconnect; fn != nil {
 		go fn(target, err)
 	}
