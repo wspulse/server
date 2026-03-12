@@ -158,6 +158,18 @@ func (s *session) enqueue(data []byte, dropOldest bool) error {
 	}
 }
 
+// cancelGraceTimer stops any running grace timer and bumps the suspend epoch
+// so that in-flight graceExpiredMessages are detected as stale.
+func (s *session) cancelGraceTimer() {
+	s.mu.Lock()
+	if s.graceTimer != nil {
+		s.graceTimer.Stop()
+		s.graceTimer = nil
+	}
+	s.suspendEpoch++
+	s.mu.Unlock()
+}
+
 // Close initiates a graceful shutdown of the session.
 // Signals writePump to send a WebSocket close frame and stop.
 // Safe to call multiple times; only the first call has effect.
