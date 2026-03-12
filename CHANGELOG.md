@@ -4,6 +4,14 @@
 
 ---
 
+## [0.2.1] - 2026-03-12
+
+### Changed
+
+- `WithResumeWindow` parameter changed from `int` (seconds) to `time.Duration` — e.g. `WithResumeWindow(30 * time.Second)` (**breaking**)
+
+---
+
 ## [0.2.0] - 2026-03-12
 
 ### Changed
@@ -43,6 +51,7 @@
 - `Server.Close` is synchronous — returns only after all goroutines exit
 - Data race in `attachWS` buffer length check
 
-[Unreleased]: https://github.com/wspulse/server/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/wspulse/server/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/wspulse/server/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/wspulse/server/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/wspulse/server/releases/tag/v0.1.0

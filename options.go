@@ -14,7 +14,7 @@ const (
 	maxWriteWait     = 30 * time.Second // WithWriteWait upper bound
 	maxMsgSizeBytes  = 64 << 20         // WithMaxMessageSize upper bound — 64 MiB
 	maxSendBufFrames = 4096             // WithSendBufferSize upper bound
-	maxResumeWindow  = 180              // WithResumeWindow upper bound — 180 s (3 min)
+	maxResumeWindow  = 3 * time.Minute  // WithResumeWindow upper bound
 )
 
 // ConnectFunc authenticates an incoming HTTP upgrade request and provides the
@@ -38,7 +38,7 @@ type serverConfig struct {
 	writeWait      time.Duration
 	maxMessageSize int64
 	sendBufferSize int
-	resumeWindow   time.Duration // session resume grace period in seconds; 0 = disabled
+	resumeWindow   time.Duration // session resume grace period as a time.Duration (e.g. 5*time.Minute); 0 = disabled
 	codec          Codec
 	checkOrigin    func(r *http.Request) bool
 	logger         *zap.Logger
@@ -173,17 +173,16 @@ func WithLogger(l *zap.Logger) ServerOption {
 }
 
 // WithResumeWindow configures the session resumption window. When a transport
-// drops, the session is suspended for seconds before firing OnDisconnect. If
-// the same connectionID reconnects within that period, the session resumes
+// drops, the session is suspended for d before firing OnDisconnect. If the
+// same connectionID reconnects within that period, the session resumes
 // transparently.
-// seconds is an integer number of seconds; passing 30 means a 30-second window.
-// Valid range: 0 (disabled) … 180 (3 min). Default is 0 (OnDisconnect fires immediately).
-func WithResumeWindow(seconds int) ServerOption {
-	if seconds < 0 {
-		panic("wspulse: WithResumeWindow: seconds must be non-negative")
+// Valid range: 0 (disabled) … 3m. Default is 0 (OnDisconnect fires immediately).
+func WithResumeWindow(d time.Duration) ServerOption {
+	if d < 0 {
+		panic("wspulse: WithResumeWindow: duration must be non-negative")
 	}
-	if seconds > maxResumeWindow {
-		panic("wspulse: WithResumeWindow: seconds exceeds maximum (180 s / 3 min)")
+	if d > maxResumeWindow {
+		panic("wspulse: WithResumeWindow: duration exceeds maximum (3m)")
 	}
-	return func(c *serverConfig) { c.resumeWindow = time.Duration(seconds) * time.Second }
+	return func(c *serverConfig) { c.resumeWindow = d }
 }

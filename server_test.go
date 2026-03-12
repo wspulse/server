@@ -858,7 +858,7 @@ func TestServer_Resume_ReconnectWithinWindow(t *testing.T) {
 
 	srv := wspulse.NewServer(
 		acceptAll,
-		wspulse.WithResumeWindow(5),
+		wspulse.WithResumeWindow(5*time.Second),
 		wspulse.WithOnConnect(func(connection wspulse.Connection) {
 			select {
 			case connected <- struct{}{}:
@@ -927,7 +927,7 @@ func TestServer_Resume_GraceExpires_FiresOnDisconnect(t *testing.T) {
 
 	srv := wspulse.NewServer(
 		acceptAll,
-		wspulse.WithResumeWindow(1),
+		wspulse.WithResumeWindow(time.Second),
 		wspulse.WithOnConnect(func(connection wspulse.Connection) {
 			select {
 			case connected <- struct{}{}:
@@ -964,7 +964,7 @@ func TestServer_Resume_BufferedFramesDelivered(t *testing.T) {
 
 	srv := wspulse.NewServer(
 		acceptAll,
-		wspulse.WithResumeWindow(5),
+		wspulse.WithResumeWindow(5*time.Second),
 		wspulse.WithOnConnect(func(connection wspulse.Connection) {
 			select {
 			case connected <- struct{}{}:
@@ -1026,7 +1026,7 @@ func TestServer_Resume_KickBypassesWindow(t *testing.T) {
 
 	srv := wspulse.NewServer(
 		acceptAll,
-		wspulse.WithResumeWindow(10),
+		wspulse.WithResumeWindow(10*time.Second),
 		wspulse.WithOnConnect(func(connection wspulse.Connection) {
 			select {
 			case connected <- struct{}{}:
@@ -1104,7 +1104,7 @@ func TestServer_Resume_ServerCloseTerminatesSuspended(t *testing.T) {
 
 	srv := wspulse.NewServer(
 		acceptAll,
-		wspulse.WithResumeWindow(10),
+		wspulse.WithResumeWindow(10*time.Second),
 		wspulse.WithOnConnect(func(connection wspulse.Connection) {
 			select {
 			case connected <- struct{}{}:
@@ -1143,7 +1143,7 @@ func TestServer_Resume_BroadcastWhileSuspended(t *testing.T) {
 
 	srv := wspulse.NewServer(
 		acceptAll,
-		wspulse.WithResumeWindow(5),
+		wspulse.WithResumeWindow(5*time.Second),
 		wspulse.WithOnConnect(func(connection wspulse.Connection) {
 			select {
 			case connected <- struct{}{}:
@@ -1189,7 +1189,7 @@ func TestServer_Resume_BroadcastWhileSuspended(t *testing.T) {
 func TestServer_Resume_ConcurrentReconnect_NoRace(t *testing.T) {
 	srv := wspulse.NewServer(
 		acceptAll,
-		wspulse.WithResumeWindow(2),
+		wspulse.WithResumeWindow(2*time.Second),
 	)
 	t.Cleanup(srv.Close)
 
@@ -1212,7 +1212,7 @@ func TestServer_Resume_ConcurrentReconnect_NoRace(t *testing.T) {
 func TestServer_Resume_ConcurrentBroadcastDuringResume_NoRace(t *testing.T) {
 	srv := wspulse.NewServer(
 		acceptAll,
-		wspulse.WithResumeWindow(2),
+		wspulse.WithResumeWindow(2*time.Second),
 	)
 	t.Cleanup(srv.Close)
 
@@ -1367,16 +1367,16 @@ func TestWithResumeWindow_Negative_Panics(t *testing.T) {
 			t.Error("expected panic for negative resume window")
 		}
 	}()
-	_ = wspulse.WithResumeWindow(-1)
+	_ = wspulse.WithResumeWindow(-time.Second)
 }
 
 func TestWithResumeWindow_ExceedsMax_Panics(t *testing.T) {
 	defer func() {
 		if r := recover(); r == nil {
-			t.Error("expected panic for resume window > 180")
+			t.Error("expected panic for resume window > 3m")
 		}
 	}()
-	_ = wspulse.WithResumeWindow(181)
+	_ = wspulse.WithResumeWindow(3*time.Minute + time.Second)
 }
 
 func TestWithCodec_ValidCodec_Accepted(t *testing.T) {
@@ -1545,7 +1545,7 @@ func TestServer_Resume_StaleClosedSession_Reconnect(t *testing.T) {
 
 	srv := wspulse.NewServer(
 		acceptAll,
-		wspulse.WithResumeWindow(1), // 1-second window
+		wspulse.WithResumeWindow(1*time.Second), // 1-second window
 		wspulse.WithOnConnect(func(connection wspulse.Connection) {
 			select {
 			case connected <- struct{}{}:
@@ -1717,7 +1717,7 @@ func TestServer_Resume_ConnectionCloseWhileSuspended(t *testing.T) {
 
 	srv := wspulse.NewServer(
 		acceptAll,
-		wspulse.WithResumeWindow(10),
+		wspulse.WithResumeWindow(10*time.Second),
 		wspulse.WithOnConnect(func(connection wspulse.Connection) {
 			select {
 			case connected <- connection:
@@ -1761,7 +1761,7 @@ func TestServer_Resume_ConnectionCloseWhileSuspended(t *testing.T) {
 func TestServer_Resume_MultipleRapidCycles(t *testing.T) {
 	srv := wspulse.NewServer(
 		acceptAll,
-		wspulse.WithResumeWindow(5),
+		wspulse.WithResumeWindow(5*time.Second),
 	)
 	t.Cleanup(srv.Close)
 	ts := httptest.NewServer(srv)
@@ -1866,7 +1866,7 @@ func TestServer_Resume_GraceExpiresAfterConnectionClose(t *testing.T) {
 
 	srv := wspulse.NewServer(
 		acceptAll,
-		wspulse.WithResumeWindow(1),
+		wspulse.WithResumeWindow(1*time.Second),
 		wspulse.WithOnConnect(func(connection wspulse.Connection) {
 			select {
 			case connected <- connection:
@@ -1913,7 +1913,7 @@ func TestServer_Resume_StaleGraceTimerIgnored(t *testing.T) {
 
 	srv := wspulse.NewServer(
 		acceptAll,
-		wspulse.WithResumeWindow(1),
+		wspulse.WithResumeWindow(1*time.Second),
 		wspulse.WithOnConnect(func(connection wspulse.Connection) {
 			select {
 			case connected <- struct{}{}:
@@ -1984,7 +1984,7 @@ func TestServer_Resume_KickWhileConnected_TransportDiedHandled(t *testing.T) {
 	disconnected := make(chan struct{}, 1)
 	srv := wspulse.NewServer(
 		acceptAll,
-		wspulse.WithResumeWindow(10),
+		wspulse.WithResumeWindow(10*time.Second),
 		wspulse.WithOnConnect(func(connection wspulse.Connection) {
 			select {
 			case connected <- struct{}{}:
@@ -2101,7 +2101,7 @@ func TestServer_Resume_DuplicateID_WhileConnected_KicksOld(t *testing.T) {
 	)
 	srv := wspulse.NewServer(
 		acceptAll,
-		wspulse.WithResumeWindow(5),
+		wspulse.WithResumeWindow(5*time.Second),
 		wspulse.WithOnConnect(func(connection wspulse.Connection) {
 			mu.Lock()
 			connectionCount++
@@ -2217,7 +2217,7 @@ func TestServer_Resume_WritePumpStopsOnPumpQuit(t *testing.T) {
 	connected := make(chan struct{}, 2)
 	srv := wspulse.NewServer(
 		acceptAll,
-		wspulse.WithResumeWindow(5),
+		wspulse.WithResumeWindow(5*time.Second),
 		wspulse.WithHeartbeat(100*time.Millisecond, 1*time.Second),
 		wspulse.WithOnConnect(func(connection wspulse.Connection) {
 			select {
@@ -2296,7 +2296,7 @@ func TestServer_Resume_ConnectionCloseWhileSuspended_ThenReconnect(t *testing.T)
 
 	srv := wspulse.NewServer(
 		acceptAll,
-		wspulse.WithResumeWindow(10), // long window so grace won't expire
+		wspulse.WithResumeWindow(10*time.Second), // long window so grace won't expire
 		wspulse.WithOnConnect(func(connection wspulse.Connection) {
 			select {
 			case connected <- struct{}{}:
@@ -2375,7 +2375,7 @@ func TestServer_Resume_StaleClosedSession_OnDisconnectFires(t *testing.T) {
 
 	srv := wspulse.NewServer(
 		acceptAll,
-		wspulse.WithResumeWindow(60), // long window; grace won't expire naturally
+		wspulse.WithResumeWindow(60*time.Second), // long window; grace won't expire naturally
 		wspulse.WithOnConnect(func(_ wspulse.Connection) { connects.Add(1) }),
 		wspulse.WithOnDisconnect(func(_ wspulse.Connection, _ error) { disconnects.Add(1) }),
 	)
@@ -2488,7 +2488,7 @@ func TestServer_Resume_WritePumpExitsViaPumpQuit(t *testing.T) {
 	connected := make(chan struct{}, 2)
 	srv := wspulse.NewServer(
 		acceptAll,
-		wspulse.WithResumeWindow(5),
+		wspulse.WithResumeWindow(5*time.Second),
 		wspulse.WithHeartbeat(5*time.Second, 30*time.Second), // long ping period
 		wspulse.WithOnConnect(func(connection wspulse.Connection) {
 			select {
@@ -2712,7 +2712,7 @@ func TestServer_Resume_GraceTimerFiresAfterReconnect(t *testing.T) {
 
 	srv := wspulse.NewServer(
 		acceptAll,
-		wspulse.WithResumeWindow(1), // minimum 1s
+		wspulse.WithResumeWindow(1*time.Second), // minimum 1s
 		wspulse.WithOnConnect(func(connection wspulse.Connection) {
 			select {
 			case connected <- struct{}{}:
@@ -2787,7 +2787,7 @@ func TestServer_Resume_StaleGraceTimer(t *testing.T) {
 
 	srv := wspulse.NewServer(
 		acceptAll,
-		wspulse.WithResumeWindow(1), // minimum 1s
+		wspulse.WithResumeWindow(1*time.Second), // minimum 1s
 		wspulse.WithOnConnect(func(connection wspulse.Connection) {
 			select {
 			case connected <- struct{}{}:
@@ -2849,7 +2849,7 @@ func TestServer_ConnectionClose_StateClosed_Resume(t *testing.T) {
 
 	srv := wspulse.NewServer(
 		acceptAll,
-		wspulse.WithResumeWindow(5),
+		wspulse.WithResumeWindow(5*time.Second),
 		wspulse.WithOnConnect(func(c wspulse.Connection) {
 			capturedConn = c
 			connected <- struct{}{}
@@ -2890,7 +2890,7 @@ func TestServer_Resume_DrainBufferFull(t *testing.T) {
 	srv := wspulse.NewServer(
 		acceptAll,
 		wspulse.WithSendBufferSize(1),
-		wspulse.WithResumeWindow(5),
+		wspulse.WithResumeWindow(5*time.Second),
 		wspulse.WithOnConnect(func(connection wspulse.Connection) {
 			select {
 			case connected <- struct{}{}:
@@ -2967,7 +2967,7 @@ func TestServer_Resume_ConnectionCloseWhileSuspended_FiresOnDisconnect(t *testin
 
 	srv := wspulse.NewServer(
 		acceptAll,
-		wspulse.WithResumeWindow(1), // 1-second grace window
+		wspulse.WithResumeWindow(time.Second), // 1-second grace window
 		wspulse.WithOnConnect(func(connection wspulse.Connection) {
 			select {
 			case connected <- connection:
@@ -3032,7 +3032,7 @@ func TestServer_Resume_ConnectionClose_ImmediateOnDisconnect(t *testing.T) {
 
 	srv := wspulse.NewServer(
 		acceptAll,
-		wspulse.WithResumeWindow(int(gracePeriod.Seconds())),
+		wspulse.WithResumeWindow(gracePeriod),
 		wspulse.WithOnConnect(func(connection wspulse.Connection) {
 			select {
 			case connected <- connection:
@@ -3101,7 +3101,7 @@ func TestServer_Resume_MassCloseWhileSuspended_AllOnDisconnect(t *testing.T) {
 		func(r *http.Request) (string, string, error) {
 			return "room", "", nil // auto UUID per connection
 		},
-		wspulse.WithResumeWindow(30), // long grace window
+		wspulse.WithResumeWindow(30*time.Second), // long grace window
 		wspulse.WithOnConnect(func(connection wspulse.Connection) {
 			mu.Lock()
 			connections = append(connections, connection)
@@ -3195,7 +3195,7 @@ func TestServer_Resume_CloseRacesTransportDied(t *testing.T) {
 		func(r *http.Request) (string, string, error) {
 			return "room", "", nil
 		},
-		wspulse.WithResumeWindow(30), // long window — if delayed, test times out
+		wspulse.WithResumeWindow(30*time.Second), // long window — if delayed, test times out
 		wspulse.WithOnConnect(func(c wspulse.Connection) {
 			connected <- c
 		}),

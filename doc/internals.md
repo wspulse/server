@@ -152,10 +152,9 @@ introduces a **session layer** that decouples the application-visible
 reconnection without leaking connect/disconnect events to the application
 layer.
 
-> **Time unit:** `WithResumeWindow` accepts an `int` representing **seconds**.
-> `WithResumeWindow(30)` means a 30-second grace window. There is no unit
-> multiplier — the raw integer is the number of seconds.
-> Valid range: 0 (disabled) … 180 (3 min).
+> **Type:** `WithResumeWindow` accepts a `time.Duration`.
+> `WithResumeWindow(30 * time.Second)` means a 30-second grace window.
+> Valid range: 0 (disabled) … 3 minutes.
 
 ### Architecture
 
