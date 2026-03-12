@@ -140,6 +140,8 @@ import (
     "github.com/wspulse/core/router"
 )
 
+var srv server.Server
+
 r := router.New()
 r.Use(router.Recovery())
 r.Use(func(c *router.Context) {
@@ -151,7 +153,7 @@ r.Use(func(c *router.Context) {
 // matches frames where "event" == "chat.message"
 r.On("chat.message", func(c *router.Context) {
     srv.Broadcast(c.Connection.RoomID(), server.Frame{
-        Event:    "chat.message",
+        Event:   "chat.message",
         Payload: c.Frame.Payload,
     })
 })
@@ -161,7 +163,7 @@ r.On("ping", func(c *router.Context) {
     _ = c.Connection.Send(server.Frame{Event: "pong"})
 })
 
-srv := server.NewServer(
+srv = server.NewServer(
     connectFn,
     server.WithOnMessage(func(conn server.Connection, f server.Frame) {
         r.Dispatch(conn, f)
