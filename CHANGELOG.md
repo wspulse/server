@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+---
+
+## [0.2.0] - 2026-03-12
+
 ### Changed
 
 - Bump `github.com/wspulse/core` to v0.2.0
@@ -12,6 +16,8 @@
 
 - `Connection.Close()` on a suspended session now immediately cancels the grace timer and fires `OnDisconnect`; previously the callback was delayed until the grace window expired
 - `removeSession` now bumps `suspendEpoch` to prevent `OnDisconnect` from double-firing when `Kick` races with a simultaneously-expiring grace timer
+- `handleRegister` no longer silently drops `OnDisconnect` when a reconnect races a `Connection.Close()` on a suspended session
+- `disconnectSession` now cancels the grace timer before calling `Close()`, preventing a spurious `graceExpiredMessage` from being enqueued on the hub channel
 
 ---
 
@@ -37,5 +43,6 @@
 - `Server.Close` is synchronous — returns only after all goroutines exit
 - Data race in `attachWS` buffer length check
 
-[Unreleased]: https://github.com/wspulse/server/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/wspulse/server/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/wspulse/server/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/wspulse/server/releases/tag/v0.1.0
